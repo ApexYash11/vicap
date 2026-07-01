@@ -1,0 +1,16 @@
+kimi:
+  model_id: accounts/fireworks/models/kimi-k2p5
+  max_tokens: 2048
+  temperature: 0.3
+  instant_mode: true
+
+minimax:
+  model_id: accounts/fireworks/models/minimax-m2p7
+  max_tokens: 4096
+  temperature: 0.2
+
+preprocess:
+  fps: 1
+  height: 360
+  max_duration_sec: 60
+  max_payload_bytes: 10485760

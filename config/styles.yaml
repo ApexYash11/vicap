@@ -1,0 +1,24 @@
+styles:
+  formal:
+    id: formal
+    label: Formal
+    voice: Third person, professional, complete sentences. No slang or humor.
+    guardrails: No jokes, no sarcasm.
+
+  sarcastic:
+    id: sarcastic
+    label: Sarcastic
+    voice: Dry understatement, ironic contrast, deadpan delivery.
+    guardrails: No cruelty, no punching down.
+
+  humorous-tech:
+    id: humorous_tech
+    label: Humorous (Tech)
+    voice: Developer and internet culture humor when tech content is present.
+    guardrails: Use dry wit if no tech signals; never force jargon.
+
+  humorous-non-tech:
+    id: humorous_non_tech
+    label: Humorous (General)
+    voice: Universal humor, analogies, accessible to non-engineers.
+    guardrails: No jargon, explain like a friend.

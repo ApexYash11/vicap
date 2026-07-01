@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VICAP Studio — Director's Room</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #1a1d27;
+      --border: #2a2f3d;
+      --text: #e8eaed;
+      --muted: #9aa0a6;
+      --accent: #6c8cff;
+      --formal: #7eb8da;
+      --sarcastic: #c9a227;
+      --tech: #6bcf7f;
+      --general: #d47eb8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 { margin: 0; font-size: 1.25rem; }
+    header span { color: var(--muted); font-size: 0.85rem; }
+    main {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 1rem;
+      padding: 1rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    video { width: 100%; border-radius: 6px; background: #000; }
+    .controls {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+      flex-wrap: wrap;
+    }
+    button, select, input[type=file] {
+      background: var(--border);
+      color: var(--text);
+      border: none;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+    button.primary { background: var(--accent); color: #fff; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .lanes { display: grid; gap: 0.5rem; margin-top: 1rem; }
+    .lane {
+      border-left: 3px solid var(--muted);
+      padding: 0.5rem 0.75rem;
+      background: rgba(255,255,255,0.03);
+      border-radius: 0 6px 6px 0;
+      font-size: 0.9rem;
+      min-height: 2.5rem;
+    }
+    .lane.formal { border-color: var(--formal); }
+    .lane.sarcastic { border-color: var(--sarcastic); }
+    .lane.humorous_tech { border-color: var(--tech); }
+    .lane.humorous_non_tech { border-color: var(--general); }
+    .lane label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; display: block; margin-bottom: 0.25rem; }
+    .transcript-box {
+      max-height: 120px;
+      overflow-y: auto;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.75rem;
+      font-family: ui-monospace, monospace;
+    }
+    .assistant { margin-top: 1rem; }
+    .assistant textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 0.5rem;
+      resize: vertical;
+      min-height: 60px;
+    }
+    .answer {
+      margin-top: 0.5rem;
+      padding: 0.75rem;
+      background: rgba(108,140,255,0.1);
+      border-radius: 6px;
+      font-size: 0.875rem;
+      white-space: pre-wrap;
+    }
+    .summary { font-size: 0.875rem; color: var(--muted); line-height: 1.5; }
+    .ir { font-family: ui-monospace, monospace; font-size: 0.75rem; color: var(--muted); word-break: break-all; }
+    .status { font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem; }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>VICAP Studio</h1>
+      <span>Caption Compiler + Meeting Assistant</span>
+    </div>
+    <span id="health">checking...</span>
+  </header>
+
+  <main>
+    <section class="panel">
+      <video id="player" controls></video>
+      <div class="controls">
+        <input type="file" id="file" accept="video/*,audio/*" />
+        <select id="mode">
+          <option value="media">Media</option>
+          <option value="conference">Conference</option>
+        </select>
+        <button class="primary" id="streamBtn">Live Process</button>
+        <button id="batchBtn">Batch Export</button>
+      </div>
+      <div class="status" id="status">Upload a clip to begin.</div>
+
+      <div class="lanes">
+        <div class="lane formal"><label>Formal</label><div id="cap-formal"></div></div>
+        <div class="lane sarcastic"><label>Sarcastic</label><div id="cap-sarcastic"></div></div>
+        <div class="lane humorous_tech"><label>Humorous Tech</label><div id="cap-humorous_tech"></div></div>
+        <div class="lane humorous_non_tech"><label>Humorous General</label><div id="cap-humorous_non_tech"></div></div>
+      </div>
+
+      <div class="transcript-box" id="transcript"></div>
+    </section>
+
+    <aside class="panel">
+      <h3 style="margin-top:0;font-size:0.95rem;">Session</h3>
+      <div class="ir" id="ir">—</div>
+
+      <h3 style="font-size:0.95rem;">Rolling Summary</h3>
+      <div class="summary" id="summary">—</div>
+
+      <div class="assistant">
+        <h3 style="font-size:0.95rem;">Assistant</h3>
+        <select id="assistMode">
+          <option value="qa">Q&A</option>
+          <option value="plan">Plan</option>
+          <option value="model">Model</option>
+          <option value="debug">Debug</option>
+        </select>
+        <textarea id="question" placeholder="Ask about the session..."></textarea>
+        <button class="primary" id="askBtn" style="margin-top:0.5rem;">Ask</button>
+        <div class="answer" id="answer" hidden></div>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    const STYLE_IDS = ["formal", "sarcastic", "humorous_tech", "humorous_non_tech"];
+    let sessionId = null;
+
+    async function checkHealth() {
+      const r = await fetch("/health");
+      const d = await r.json();
+      document.getElementById("health").textContent = d.has_api_key ? "API ready" : "No API key";
+    }
+
+    function setStatus(msg) {
+      document.getElementById("status").textContent = msg;
+    }
+
+    function appendCaption(style, text) {
+      const el = document.getElementById(`cap-${style}`);
+      if (el) el.textContent = (el.textContent ? el.textContent + " " : "") + text;
+    }
+
+    function appendTranscript(segments) {
+      const box = document.getElementById("transcript");
+      for (const s of segments) {
+        box.textContent += `[${s.start?.toFixed(0)}s] ${s.text}\n`;
+      }
+      box.scrollTop = box.scrollHeight;
+    }
+
+    document.getElementById("file").addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        document.getElementById("player").src = URL.createObjectURL(file);
+      }
+    });
+
+    document.getElementById("streamBtn").addEventListener("click", async () => {
+      const file = document.getElementById("file").files[0];
+      if (!file) return alert("Select a file first");
+      STYLE_IDS.forEach(s => document.getElementById(`cap-${s}`).textContent = "");
+      document.getElementById("transcript").textContent = "";
+      setStatus("Streaming...");
+
+      const fd = new FormData();
+      fd.append("file", file);
+      const mode = document.getElementById("mode").value;
+      const resp = await fetch(`/sessions/stream?mode=${mode}`, { method: "POST", body: fd });
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop();
+        for (const part of parts) {
+          if (!part.startsWith("data: ")) continue;
+          const event = JSON.parse(part.slice(6));
+          if (event.event === "session_start") {
+            sessionId = event.session_id;
+            setStatus(`Session ${sessionId}`);
+          } else if (event.event === "transcript") {
+            document.getElementById("ir").textContent = event.scene || "—";
+            appendTranscript(event.segments || []);
+          } else if (event.event === "captions") {
+            for (const [k, v] of Object.entries(event.captions || {})) appendCaption(k, v);
+          } else if (event.event === "session_complete") {
+            sessionId = event.session_id;
+            document.getElementById("summary").textContent = event.summary || "—";
+            setStatus(`Done — ${event.ledger?.total_calls || 0} API calls`);
+            if (event.suggest_debug_mode) {
+              document.getElementById("assistMode").value = "debug";
+            }
+          }
+        }
+      }
+    });
+
+    document.getElementById("batchBtn").addEventListener("click", async () => {
+      const file = document.getElementById("file").files[0];
+      if (!file) return alert("Select a file first");
+      setStatus("Batch processing...");
+      const fd = new FormData();
+      fd.append("file", file);
+      const mode = document.getElementById("mode").value;
+      const r = await fetch(`/sessions/batch?mode=${mode}`, { method: "POST", body: fd });
+      const d = await r.json();
+      sessionId = d.session_id;
+      STYLE_IDS.forEach(s => {
+        const caps = d.captions?.[s] || [];
+        document.getElementById(`cap-${s}`).textContent = caps.join(" ");
+      });
+      document.getElementById("summary").textContent = d.summary || "—";
+      setStatus(`Batch done — ${d.ledger?.total_calls || 0} API calls`);
+    });
+
+    document.getElementById("askBtn").addEventListener("click", async () => {
+      if (!sessionId) return alert("Process a session first");
+      const question = document.getElementById("question").value.trim();
+      if (!question) return;
+      const mode = document.getElementById("assistMode").value;
+      const r = await fetch(`/sessions/${sessionId}/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, mode }),
+      });
+      const d = await r.json();
+      const ans = document.getElementById("answer");
+      ans.hidden = false;
+      ans.textContent = d.answer + (d.citations?.length ? `\n\nCitations: ${d.citations.join(", ")}` : "");
+    });
+
+    checkHealth();
+  </script>
+</body>
+</html>
