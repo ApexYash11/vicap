@@ -7,9 +7,53 @@ import logging
 from pathlib import Path
 
 from vicap.config import get_settings
+from vicap.core.db import get_session_maker
+from vicap.domain.api_key_service import ApiKeyService
 from vicap.pipeline import Pipeline
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
+
+
+async def _async_create_key(name: str, rate_limit: int) -> None:
+    maker = get_session_maker()
+    async with maker() as db:
+        svc = ApiKeyService(db)
+        raw, key = await svc.create_key(name, rate_limit)
+        print(f"API Key created:")
+        print(f"  ID:      {key.id}")
+        print(f"  Name:    {key.name}")
+        print(f"  Key:     {raw}")
+        print(f"  Hash:    {key.key_hash[:16]}...")
+        print(f"  Limit:   {key.rate_limit} req/min")
+        print(f"  Active:  {key.is_active}")
+        print(f"  Store this key securely — it will not be shown again.")
+
+
+async def _async_revoke_key(key_id: str) -> None:
+    maker = get_session_maker()
+    async with maker() as db:
+        svc = ApiKeyService(db)
+        ok = await svc.revoke_key(key_id)
+        if ok:
+            print(f"API Key {key_id} revoked.")
+        else:
+            print(f"API Key {key_id} not found.")
+
+
+async def _async_list_keys() -> None:
+    maker = get_session_maker()
+    async with maker() as db:
+        svc = ApiKeyService(db)
+        keys = await svc.list_keys()
+        if not keys:
+            print("No API keys found.")
+            return
+        for k in keys:
+            status = "active" if k.is_active else "revoked"
+            print(
+                f"  {k.id}  {k.name:<20} {status:<8} {k.rate_limit} req/min  created={k.created_at.date()}"
+            )
 
 
 def main() -> None:
@@ -26,7 +70,31 @@ def main() -> None:
     clips = sub.add_parser("clips", help="Batch process all clips in data/clips/")
     clips.add_argument("--output-dir", type=Path)
 
+    keys = sub.add_parser("keys", help="Manage API keys")
+    keys_sub = keys.add_subparsers(dest="keys_command", required=True)
+
+    keys_create = keys_sub.add_parser("create", help="Create a new API key")
+    keys_create.add_argument("name", type=str, help="Human-readable name for the key")
+    keys_create.add_argument(
+        "--rate-limit", type=int, default=100, help="Requests per minute limit"
+    )
+
+    keys_revoke = keys_sub.add_parser("revoke", help="Revoke an API key")
+    keys_revoke.add_argument("id", type=str, help="Key ID to revoke")
+
+    keys_list = keys_sub.add_parser("list", help="List all API keys")
+
     args = parser.parse_args()
+
+    if args.command == "keys":
+        if args.keys_command == "create":
+            asyncio.run(_async_create_key(args.name, args.rate_limit))
+        elif args.keys_command == "revoke":
+            asyncio.run(_async_revoke_key(args.id))
+        elif args.keys_command == "list":
+            asyncio.run(_async_list_keys())
+        return
+
     settings = get_settings()
 
     if not settings.has_api_key:

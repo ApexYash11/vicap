@@ -8,6 +8,8 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
+from collections.abc import Callable, Coroutine
+
 from vicap.assistant.worker import AssistantWorker
 from vicap.compile.worker import STYLE_KEYS, CompileWorker
 from vicap.config import get_settings
@@ -24,12 +26,15 @@ from vicap.session.store import SessionStore
 
 logger = logging.getLogger(__name__)
 
+ProgressCallback = Callable[[int, int], Coroutine[None, None, None]]
+
 
 class Pipeline:
     def __init__(
         self,
         client: FireworksClient | None = None,
         store: SessionStore | None = None,
+        progress_callback: ProgressCallback | None = None,
     ) -> None:
         self.client = client or FireworksClient()
         self.store = store or SessionStore(get_settings().redis_url)
@@ -37,6 +42,7 @@ class Pipeline:
         self.compile = CompileWorker(self.client)
         self.assistant = AssistantWorker(self.client)
         self.settings = get_settings()
+        self.progress_callback = progress_callback
 
     async def create_session(
         self,
@@ -116,6 +122,10 @@ class Pipeline:
                             memory.captions_by_style.setdefault(k, []).append(v)
 
                     memory.chunk_count += 1
+
+                    total_chunks = len(chunks)
+                    if self.progress_callback:
+                        await self.progress_callback(memory.chunk_count, total_chunks)
 
             memory.rolling_summary = await self.assistant.rolling_summary(memory)
             memory.action_items = await self.assistant.extract_action_items(memory)

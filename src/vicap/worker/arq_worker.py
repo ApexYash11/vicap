@@ -5,27 +5,41 @@ import logging
 from pathlib import Path
 
 import arq
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from vicap.config import get_settings
 from vicap.core.db import get_session_maker
-from vicap.models.sql import Job as JobModel, Session as SessionModel
+from vicap.domain.job_service import JobService
+from vicap.domain.session_service import SessionService
 from vicap.pipeline import Pipeline
+from vicap.session.store import SessionStore
 
 logger = logging.getLogger(__name__)
-pipeline = Pipeline()
 
 
 async def process_video_job(ctx: dict, session_id: str, job_id: str, file_path: str) -> dict:
     maker = get_session_maker()
     async with maker() as db:
-        job = await _get_job(db, job_id)
+        job_svc = JobService(db)
+        session_svc = SessionService(db)
+
+        job = await job_svc.get_job(job_id)
         if not job or job.status == "cancelled":
+            logger.info("Job %s skipped (status: %s)", job_id, job.status if job else "not found")
             return {"status": "cancelled"}
 
-        await _update_job_status(db, job, "running")
-        await _update_session_status(db, session_id, "processing")
+        await job_svc.update_status(job_id, "running")
+        await session_svc.update_status(session_id, "processing")
+
+        async def on_progress(done: int, total: int) -> None:
+            await job_svc.update_status(
+                job_id, "running", progress={"chunks_done": done, "chunks_total": total}
+            )
+
+        pipeline = Pipeline(
+            store=SessionStore(get_settings().redis_url),
+            progress_callback=on_progress,
+        )
 
         try:
             memory = await pipeline.process_batch(
@@ -33,61 +47,21 @@ async def process_video_job(ctx: dict, session_id: str, job_id: str, file_path: 
                 session_id=session_id,
             )
 
-            await _update_job_progress(
-                db, job, {"chunks_done": memory.chunk_count, "chunks_total": memory.chunk_count}
+            await session_svc.persist_session(
+                session_id,
+                memory,
+                ledger=pipeline.client.ledger.to_dict(),
             )
-            await _update_job_status(db, job, "completed")
-            await _update_session_status(db, session_id, "completed")
+            await job_svc.update_status(job_id, "completed")
 
             logger.info("Job %s completed for session %s", job_id, session_id)
             return {"status": "completed", "session_id": session_id}
 
         except Exception as exc:
             logger.exception("Job %s failed: %s", job_id, exc)
-            await _update_job_status(db, job, "failed", str(exc))
-            await _update_session_status(db, session_id, "failed", str(exc))
+            await job_svc.update_status(job_id, "failed", error_message=str(exc))
+            await session_svc.update_status(session_id, "failed", str(exc))
             return {"status": "failed", "error": str(exc)}
-
-
-async def _get_job(db: AsyncSession, job_id: str) -> JobModel | None:
-    from uuid import UUID
-
-    result = await db.execute(select(JobModel).where(JobModel.id == UUID(job_id)))
-    return result.scalar_one_or_none()
-
-
-async def _update_job_status(
-    db: AsyncSession, job: JobModel, status: str, error: str | None = None
-) -> None:
-    from datetime import datetime, timezone
-
-    job.status = status
-    if status == "running":
-        job.started_at = datetime.now(timezone.utc)
-    if status in ("completed", "failed", "cancelled"):
-        job.completed_at = datetime.now(timezone.utc)
-    if error:
-        job.error_message = error
-    await db.commit()
-
-
-async def _update_job_progress(db: AsyncSession, job: JobModel, progress: dict) -> None:
-    job.progress = progress
-    await db.commit()
-
-
-async def _update_session_status(
-    db: AsyncSession, session_id: str, status: str, error: str | None = None
-) -> None:
-    from uuid import UUID
-
-    result = await db.execute(select(SessionModel).where(SessionModel.id == UUID(session_id)))
-    session = result.scalar_one_or_none()
-    if session:
-        session.status = status
-        if error:
-            session.error_message = error
-        await db.commit()
 
 
 class WorkerSettings:

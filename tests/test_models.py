@@ -1,4 +1,12 @@
-from vicap.models import SceneIR, SessionMemory, TranscriptSegment
+from vicap.models import (
+    SceneIR,
+    SessionMemory,
+    TranscriptSegment,
+    ActionItem,
+    QAEntry,
+    AssistantMode,
+    SessionMode,
+)
 
 
 def test_scene_ir_compact():
@@ -42,3 +50,49 @@ def test_compact_context():
     assert "SCENE:" in ctx
     assert "TRANS:" in ctx
     assert "SUMMARY:" in ctx
+
+
+def test_action_item():
+    item = ActionItem(task="Fix bug", owner="Alice", deadline="2026-07-10")
+    d = item.to_dict()
+    assert d["task"] == "Fix bug"
+    assert d["owner"] == "Alice"
+
+
+def test_qa_entry():
+    qa = QAEntry(question="What?", answer="42", mode=AssistantMode.QA)
+    d = qa.to_dict()
+    assert d["question"] == "What?"
+    assert d["mode"] == "qa"
+
+
+def test_session_mode_values():
+    assert SessionMode.MEDIA.value == "media"
+    assert SessionMode.CONFERENCE.value == "conference"
+
+
+def test_scene_from_dict():
+    data = {
+        "chunk_id": 1,
+        "time_start": 0.0,
+        "time_end": 5.0,
+        "entities": ["a", "b"],
+        "actions": ["running"],
+        "mood": "happy",
+        "tech_signals": [],
+        "delivery": "excited",
+        "dialogue_summary": "hello",
+        "confidence": 0.95,
+        "static": False,
+    }
+    scene = SceneIR.from_dict(data)
+    assert scene.entities == ["a", "b"]
+    assert scene.mood == "happy"
+    assert scene.confidence == 0.95
+
+
+def test_session_memory_status():
+    mem = SessionMemory()
+    assert mem.status == "created"
+    mem.status = "completed"
+    assert mem.status == "completed"
