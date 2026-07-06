@@ -21,7 +21,14 @@ class Settings(BaseSettings):
     minimax_model: str = Field(
         default="accounts/fireworks/models/minimax-m2p7", alias="MINIMAX_MODEL"
     )
+    database_url: str = Field(
+        default="postgresql+asyncpg://vicap:vicap_secret@localhost:5432/vicap",
+        alias="DATABASE_URL",
+    )
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    redis_jobs_url: str = Field(default="redis://localhost:6379/1", alias="REDIS_JOBS_URL")
+    api_key_required: bool = Field(default=True, alias="API_KEY_REQUIRED")
+    rate_limit_per_minute: int = Field(default=100, alias="RATE_LIMIT_PER_MINUTE")
     data_dir: Path = Field(default=ROOT / "data", alias="VICAP_DATA_DIR")
     output_dir: Path = Field(default=ROOT / "outputs", alias="VICAP_OUTPUT_DIR")
     chunk_duration_sec: float = Field(default=3.0, alias="CHUNK_DURATION_SEC")

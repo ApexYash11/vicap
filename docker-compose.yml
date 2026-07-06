@@ -10,8 +10,35 @@ services:
       - ./outputs:/app/outputs
     depends_on:
       - redis
+      - db
+
+  worker:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+    depends_on:
+      - redis
+      - db
+    command: python -m vicap.worker.arq_worker
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: vicap
+      POSTGRES_USER: vicap
+      POSTGRES_PASSWORD: vicap_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

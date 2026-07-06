@@ -19,6 +19,21 @@ class AssistantMode(str, Enum):
     DEBUG = "debug"
 
 
+class SessionStatus(str, Enum):
+    CREATED = "created"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class JobStatus(str, Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
 @dataclass
 class TranscriptSegment:
     start: float
@@ -151,6 +166,7 @@ class SessionMemory:
     action_items: list[ActionItem] = field(default_factory=list)
     qa_history: list[QAEntry] = field(default_factory=list)
     chunk_count: int = 0
+    status: str = "created"
 
     def compact_context(self, max_scenes: int = 20) -> str:
         lines = []
@@ -181,6 +197,7 @@ class SessionMemory:
             "action_items": [a.to_dict() for a in self.action_items],
             "qa_history": [q.to_dict() for q in self.qa_history],
             "chunk_count": self.chunk_count,
+            "status": self.status,
         }
 
     @classmethod
@@ -192,6 +209,7 @@ class SessionMemory:
             created_at=data.get("created_at", ""),
             rolling_summary=data.get("rolling_summary", ""),
             chunk_count=data.get("chunk_count", 0),
+            status=data.get("status", "created"),
         )
         mem.scenes = [SceneIR.from_dict(s) for s in data.get("scenes") or []]
         mem.transcripts = [
