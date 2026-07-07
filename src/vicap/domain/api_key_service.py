@@ -30,7 +30,11 @@ class ApiKeyService:
         return raw_key, api_key
 
     async def get_key(self, key_id: str) -> ApiKeyModel | None:
-        result = await self.db.execute(select(ApiKeyModel).where(ApiKeyModel.id == UUID(key_id)))
+        try:
+            kid = UUID(key_id)
+        except ValueError:
+            return None
+        result = await self.db.execute(select(ApiKeyModel).where(ApiKeyModel.id == kid))
         return result.scalar_one_or_none()
 
     async def list_keys(self) -> list[ApiKeyModel]:
@@ -38,7 +42,11 @@ class ApiKeyService:
         return list(result.scalars().all())
 
     async def revoke_key(self, key_id: str) -> bool:
-        result = await self.db.execute(select(ApiKeyModel).where(ApiKeyModel.id == UUID(key_id)))
+        try:
+            kid = UUID(key_id)
+        except ValueError:
+            return False
+        result = await self.db.execute(select(ApiKeyModel).where(ApiKeyModel.id == kid))
         key = result.scalar_one_or_none()
         if not key:
             return False

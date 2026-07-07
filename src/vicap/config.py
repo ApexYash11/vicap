@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     chunk_overlap_sec: float = Field(default=1.0, alias="CHUNK_OVERLAP_SEC")
     motion_gate_threshold: float = Field(default=0.08, alias="MOTION_GATE_THRESHOLD")
     summary_interval_sec: int = Field(default=30, alias="SUMMARY_INTERVAL_SEC")
+    max_stream_events: int = Field(default=1000, alias="MAX_STREAM_EVENTS")
+    s3_bucket: str = Field(default="", alias="S3_BUCKET")
+    s3_prefix: str = Field(default="vicap", alias="S3_PREFIX")
+    s3_endpoint_url: str = Field(default="", alias="S3_ENDPOINT_URL")
+    s3_region: str = Field(default="us-east-1", alias="S3_REGION")
+    s3_access_key_id: str = Field(default="", alias="S3_ACCESS_KEY_ID")
+    s3_secret_access_key: str = Field(default="", alias="S3_SECRET_ACCESS_KEY")
 
     @property
     def clips_dir(self) -> Path:

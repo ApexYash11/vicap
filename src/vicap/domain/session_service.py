@@ -45,9 +45,11 @@ class SessionService:
         memory: SessionMemory,
         ledger: dict | None = None,
     ) -> SessionModel | None:
-        result = await self.db.execute(
-            select(SessionModel).where(SessionModel.id == UUID(session_id))
-        )
+        try:
+            sid = UUID(session_id)
+        except ValueError:
+            return None
+        result = await self.db.execute(select(SessionModel).where(SessionModel.id == sid))
         session = result.scalar_one_or_none()
         if not session:
             logger.warning("Session %s not found for persistence", session_id)
@@ -69,9 +71,11 @@ class SessionService:
         return session
 
     async def get_session_by_id(self, session_id: str) -> SessionModel | None:
-        result = await self.db.execute(
-            select(SessionModel).where(SessionModel.id == UUID(session_id))
-        )
+        try:
+            sid = UUID(session_id)
+        except ValueError:
+            return None
+        result = await self.db.execute(select(SessionModel).where(SessionModel.id == sid))
         return result.scalar_one_or_none()
 
     async def list_sessions(
@@ -104,9 +108,11 @@ class SessionService:
         return result.scalar() or 0
 
     async def delete_session_record(self, session_id: str) -> bool:
-        result = await self.db.execute(
-            select(SessionModel).where(SessionModel.id == UUID(session_id))
-        )
+        try:
+            sid = UUID(session_id)
+        except ValueError:
+            return False
+        result = await self.db.execute(select(SessionModel).where(SessionModel.id == sid))
         session = result.scalar_one_or_none()
         if not session:
             return False
@@ -117,9 +123,11 @@ class SessionService:
     async def update_status(
         self, session_id: str, status: str, error_message: str | None = None
     ) -> bool:
-        result = await self.db.execute(
-            select(SessionModel).where(SessionModel.id == UUID(session_id))
-        )
+        try:
+            sid = UUID(session_id)
+        except ValueError:
+            return False
+        result = await self.db.execute(select(SessionModel).where(SessionModel.id == sid))
         session = result.scalar_one_or_none()
         if not session:
             return False

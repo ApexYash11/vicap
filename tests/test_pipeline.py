@@ -17,3 +17,11 @@ def test_pipeline_with_callback():
 
     p = Pipeline(progress_callback=cb)
     assert p.progress_callback is not None
+
+
+def test_sse_cap_config_default():
+    from vicap.config import get_settings
+
+    s = get_settings()
+    assert s.max_stream_events > 0
+    assert isinstance(s.max_stream_events, int)

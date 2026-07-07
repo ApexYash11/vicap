@@ -156,8 +156,16 @@ async def stream_process(
     upload_path.write_bytes(await file.read())
 
     async def event_generator():
+        event_count = 0
+        max_events = get_settings().max_stream_events
         async for event in pipeline.stream_session(upload_path, mode=mode):
+            if event_count >= max_events:
+                yield (
+                    f"data: {json.dumps({'event': 'stream_capped', 'message': f'Stream capped at {max_events} events'})}\n\n"
+                )
+                break
             yield f"data: {json.dumps(event)}\n\n"
+            event_count += 1
 
     return StreamingResponse(
         event_generator(),

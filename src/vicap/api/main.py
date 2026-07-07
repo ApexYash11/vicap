@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-import logging
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
+import structlog
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
@@ -14,9 +16,10 @@ from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_
 from vicap.config import ROOT, get_settings
 from vicap.core.db import init_db, close_db
 from vicap.core.exceptions import app_exception_handler, http_exception_handler, AppException
+from vicap.core.logging import setup_logging
 from vicap.api.v1.router import v1_router
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 # ── Prometheus metrics ──────────────────────────────────────────
 HTTP_REQUESTS = Counter(
@@ -62,11 +65,28 @@ def _check_rate_limit(api_key_id: str | None) -> None:
         raise HTTPException(429, "Rate limit exceeded. Try again in 60 seconds.")
 
 
+# ── Lifespan ─────────────────────────────────────────────────────
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    setup_logging()
+    settings = get_settings()
+    if settings.database_url:
+        try:
+            await init_db()
+            logger.info("db_connected")
+        except Exception as exc:
+            logger.warning("db_init_failed", error=str(exc))
+    logger.info("vicap_started", metrics="/metrics", docs="/docs", api="/api/v1/")
+    yield
+    await close_db()
+
+
 # ── App factory ──────────────────────────────────────────────────
 app = FastAPI(
     title="VICAP Studio",
     description="Caption compiler + real-time meeting assistant",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -108,20 +128,3 @@ async def metrics_middleware(request: Request, call_next):
 @app.get("/metrics")
 async def metrics():
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
-
-
-@app.on_event("startup")
-async def on_startup() -> None:
-    settings = get_settings()
-    if settings.database_url:
-        try:
-            await init_db()
-            logger.info("Database connected and tables created")
-        except Exception as exc:
-            logger.warning("Database init failed (non-fatal): %s", exc)
-    logger.info("VICAP Studio started — metrics at /metrics, docs at /docs, API at /api/v1/")
-
-
-@app.on_event("shutdown")
-async def on_shutdown() -> None:
-    await close_db()

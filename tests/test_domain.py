@@ -14,14 +14,12 @@ class TestApiKeyService:
         mock_db.commit = AsyncMock()
         mock_db.refresh = AsyncMock()
 
-        from vicap.domain.api_key_service import ApiKeyService
-
-        svc = ApiKeyService(mock_db)
-        svc.generate_api_key = lambda: ("raw_test_key", hash_api_key("raw_test_key"))
+        from vicap.domain import api_key_service as aks
 
         with patch.object(
-            svc, "generate_api_key", return_value=("raw_test_key", hash_api_key("raw_test_key"))
+            aks, "generate_api_key", return_value=("raw_test_key", hash_api_key("raw_test_key"))
         ):
+            svc = aks.ApiKeyService(mock_db)
             raw, key = await svc.create_key("test-key")
             assert raw == "raw_test_key"
             mock_db.add.assert_called_once()
